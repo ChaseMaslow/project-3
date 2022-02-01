@@ -73,31 +73,81 @@
          <br />
          <div class="row">
             <div class="col-xs-6 text-center">
-               <form id="entry" method="POST" action="/_check">
+               <form id="entry">
                   <label for="attempt">Word:</label>
                   <input id="attempt" name="attempt" type="text" width="15"
                      autocomplete="off"  autofocus />
-                  <input type="submit" name="try" />
                </form>
             </div>
          </div>
          <br />
-         {% if session.matches|length is not equalto 0  %}
          <h2>You found </h2>
-         <p id="results">
-            {% for match in session.matches %}
-            {{ match }}
-            {% endfor %}
-         </p>
-         {% endif %}
-         {% with messages = get_flashed_messages() %}
-         {% if messages %}
-         <!-- Mismatch, already found, etc. "flashed" from Python -->
-         {% for message in messages %}
-         <p class="message">{{ message }}</p>
-         {% endfor %}
-         {% endif %}
-         {% endwith %}
+         <p id="results"> </p>
+         <p id="message"> </p>
+		 <script>
+			$("#entry").submit( function(event) {
+				event.preventDefault();
+			  });
+			
+			$("#attempt").keyup( function(event) {
+				var txt = $("#attempt").val();
+				var keycode = event.which;
+				var letter = String.fromCharCode(keycode);
+				
+				if (! "ABCDEFGHIJKLMNOPQRSTUVWXYZ".includes(letter)) {return}
+				
+				$.getJSON( "/_check", { text: txt }, 
+					function(data) {
+						
+						// Go through JSON results and respond
+						
+						if (data.result.solved_enough) {
+							console.log("Solved")
+							location.href = '/success';
+						}
+						
+						if (data.result.matched && data.result.in_jumble && !data.result.in_matches) {
+							// Check for "duplicate" request
+							if (!($("#results").text().includes(txt))) {
+								console.log("New match")
+								rs = $("#results").html();
+								$("#results").text(txt);
+								$("#results").prepend(rs);
+								$("#results").append("<br>");
+							} else {
+								console.log("New match (duplicate)")
+							}
+						}
+						// Before handling corrective messages to the user,
+						// make sure this response is up to date with the input field.
+						if (txt != $("#attempt").val()) {
+							console.log("Caught old reponse"); //for testing
+							return;
+						}
+						
+						// Now that we're up to date, clear the previous message
+						$("#message").html("");
+						
+						if (data.result.in_matches) {
+							console.log("Already found")
+							$("#message").text("You already found " + txt);
+						}
+						
+						if (!data.result.matched){
+							$("#message").text(txt + " isn't in the list of words");
+							$("#message").append("<br>");
+						}
+						
+						if (!data.result.in_jumble) {
+							msg = $("#message").html();
+							$("#message").text(txt + " can't be made from the letters given");
+							$("#message").prepend(msg); // Preserve other message contents
+						}
+					}
+				);
+				
+			  });
+		 </script>
       </div>
       <!-- container -->
    </body>

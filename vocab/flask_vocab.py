@@ -5,6 +5,7 @@ from a scrambled string)
 """
 
 import flask
+from flask import request
 import logging
 
 # Our modules
@@ -58,14 +59,14 @@ def index():
     return flask.render_template('vocab.html')
 
 
-@app.route("/keep_going")
-def keep_going():
-    """
-    After initial use of index, we keep the same scrambled
-    word and try to get more matches
-    """
-    flask.g.vocab = WORDS.as_list()
-    return flask.render_template('vocab.html')
+# @app.route("/keep_going")
+# def keep_going():
+    # """
+    # After initial use of index, we keep the same scrambled
+    # word and try to get more matches
+    # """
+    # flask.g.vocab = WORDS.as_list()
+    # return flask.render_template('vocab.html')
 
 
 @app.route("/success")
@@ -79,7 +80,7 @@ def success():
 #   a JSON request handler
 #######################
 
-@app.route("/_check", methods=["POST"])
+@app.route("/_check")
 def check():
     """
     User has submitted the form with a word ('attempt')
@@ -89,38 +90,32 @@ def check():
     made only from the jumble letters, and not a word they
     already found.
     """
+
     app.logger.debug("Entering check")
 
     # The data we need, from form and from cookie
-    text = flask.request.form["attempt"]
+    text = request.args.get("text", type=str)
     jumble = flask.session["jumble"]
     matches = flask.session.get("matches", [])  # Default to empty list
 
     # Is it good?
     in_jumble = LetterBag(jumble).contains(text)
     matched = WORDS.has(text)
+    in_matches = text in matches
 
-    # Respond appropriately
-    if matched and in_jumble and not (text in matches):
-        # Cool, they found a new word
+    # Update matches
+    if matched and in_jumble and not (in_matches):
+        app.logger.debug("Matched")
         matches.append(text)
         flask.session["matches"] = matches
-    elif text in matches:
-        flask.flash("You already found {}".format(text))
-    elif not matched:
-        flask.flash("{} isn't in the list of words".format(text))
-    elif not in_jumble:
-        flask.flash(
-            '"{}" can\'t be made from the letters {}'.format(text, jumble))
-    else:
-        app.logger.debug("This case shouldn't happen!")
-        assert False  # Raises AssertionError
 
-    # Choose page:  Solved enough, or keep going?
-    if len(matches) >= flask.session["target_count"]:
-       return flask.redirect(flask.url_for("success"))
-    else:
-       return flask.redirect(flask.url_for("keep_going"))
+    # Return results
+    return flask.jsonify ( result = {
+        "matched": matched,
+        "in_matches": in_matches,
+        "in_jumble": in_jumble,
+        "solved_enough": len(matches) >= flask.session["target_count"],
+    } )
 
 
 ###############
@@ -128,14 +123,14 @@ def check():
 #   These return JSON, rather than rendering pages.
 ###############
 
-@app.route("/_example")
-def example():
-    """
-    Example ajax request handler
-    """
-    app.logger.debug("Got a JSON request")
-    rslt = {"key": "value"}
-    return flask.jsonify(result=rslt)
+# @app.route("/_example")
+# def example():
+    # """
+    # Example ajax request handler
+    # """
+    # app.logger.debug("Got a JSON request")
+    # rslt = {"key": "value"}
+    # return flask.jsonify(result=rslt)
 
 
 #################
